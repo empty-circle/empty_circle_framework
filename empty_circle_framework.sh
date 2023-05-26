@@ -14,6 +14,21 @@ workspace_info="No workspace set"
 workspace_name=""
 workspace_location=""
 
+# Path to the configuration file
+config_file="config.ecf"
+
+# Check if the configuration file exists
+if [[ ! -f $config_file ]]; then
+  # Create the file if it doesn't exist
+  touch $config_file
+
+  # Get the directory of the script
+  framework_path=$(dirname "$(readlink -f "$0")")
+
+  # Write the initial configuration to the file
+  echo "framework_path=$framework_path" > $config_file
+fi
+
 # Define banner
 function banner() {
   clear
@@ -37,9 +52,15 @@ function workspace_setup() {
   echo "Name of Workspace:"
   read workspace_name
 
-  # Ask for location of workspace directory - default is empty_circle/workspaces/
-  echo "Location of Workspace Directory - default is empty_circle/workspaces/"
+  # Ask for location of workspace directory - default is workspace/
+  echo "Location of Workspace Directory (Press enter for default: workspace/):"
   read workspace_location
+
+  # If the user didn't enter anything, use the default location
+  if [[ -z $workspace_location ]]; then
+    workspace_location="workspace/"
+  fi
+
 
   # Check if workspace directory exists, if not, create it
   if [ ! -d "$workspace_location" ]; then
@@ -47,12 +68,11 @@ function workspace_setup() {
   fi
 
   # Update workspace_info
-  workspace_info="$workspace_name @ $workspace_location"
+  workspace_info="$workspace_name"
 
   # Add workspace to the configuration file
-  echo -e "\n# New Workspace" >> config
-  echo "workspace_path=$workspace_location" >> config
-  echo "workspace_name=\"$workspace_name\"" >> config
+  echo -e "\n# New Workspace" >> config.ecf
+  echo "workspace=\"${workspace_name}=${workspace_location}\"" >> config.ecf
 
   while true; do
     workspace_menu
@@ -66,11 +86,7 @@ function workspace_setup() {
         basker_stealth_scan -t $target_range -o $output_file
         ;;
         2)
-        echo "Enter target range in CIDR notation:"
-        read target_range
-        echo "Enter output file:"
-        read output_file
-        hiss_aggressive_scan -t $target_range -o $output_file
+        hiss_aggressive_scan
         ;;
       3)
         automated_svsc_scan
@@ -106,19 +122,18 @@ function workspace_load() {
   read workspace_name
 
   # Search for the workspace in the config file
-  workspace_path=$(grep "${workspace_name}_path=" config | cut -d'=' -f2)
-  workspace_name_found=$(grep "${workspace_name}_name=" config | cut -d'=' -f2 | tr -d "\"")
+  workspace_entry=$(grep "workspace=\"${workspace_name}=" $config_file)
 
   # If the workspace was not found, notify the user and return
-  if [ -z "$workspace_path" ] || [ -z "$workspace_name_found" ]; then
+  if [ -z "$workspace_entry" ]; then
     echo "Workspace \"$workspace_name\" does not exist."
     return
   fi
 
   # If workspace found, load it into the workspace_info
-  workspace_info="$workspace_name_found @ $workspace_path"
+  workspace_info="$workspace_entry"
 
-  echo "Workspace \"$workspace_name_found\" loaded."
+  echo "Workspace \"$workspace_name\" loaded."
 }
 
 # Define sub_menu
@@ -150,64 +165,33 @@ function generate_random_dns_servers() {
   echo "$random_dns_servers_list"
 }
 
-function basker_stealth_scan() {
+function lizard_eye(){
+  output_file="$1"
+  declare -A open_ips_files
 
-    function show_basker_usage() {
-        echo "Usage: $0 -t <target_range> -o <output_file> [-v|-f]"
-        echo ""
-        echo "  -t  target range in CIDR notation (required)"
-        echo "  -o  output file (required)"
-        echo "  -v  use verbose mode"
-        echo "  -f  use fragmentation"
-        echo ""
-        exit 1
-    }
+  open_ports=(21 22 23 80 110 125 443 3306 5060 8080)
 
-    function lizard_eye(){
-        output_file=$output_file
-        declare -A open_ips_files
+  for port in "${open_ports[@]}"; do
+    open_ips_files["$port"]="open_ips_port_$port.txt"
+    touch "${workspace_location}${open_ips_files["$port"]}"
+  done
 
-        open_ports=(21 22 23 80 110 125 443 3306 5060 8080)
-
+  while read -r line; do
+    if [[ $line =~ ^Host:\ (.+)[[:space:]]\(\)[[:space:]]Ports:\ (.+) ]]; then
+      ip=${BASH_REMATCH[1]}
+      ports=${BASH_REMATCH[2]}
         for port in "${open_ports[@]}"; do
-            open_ips_files["$port"]="open_ips_port_$port.txt"
-            touch "${open_ips_files["$port"]}"
+          if [[ $ports =~ $port/open ]]; then
+            echo "$ip" >> "${workspace_location}${open_ips_files["$port"]}"
+          fi
         done
+    fi
+  done < "$output_file"
+}
 
-        while read -r line; do
-            if [[ $line =~ ^Host:\ (.+)[[:space:]]\(\)[[:space:]]Ports:\ (.+) ]]; then
-                ip=${BASH_REMATCH[1]}
-                ports=${BASH_REMATCH[2]}
-
-                for port in "${open_ports[@]}"; do
-                    if [[ $ports =~ $port/open ]]; then
-                        echo "$ip" >> "${open_ips_files["$port"]}"
-                    fi
-                done
-            fi
-        done < "$output_file"
-    }
-
+function basker_stealth_scan() {
     verbose=0
     fragment=0
-    while getopts "t:o:vf" opt; do
-        case $opt in
-        t) target_range="$OPTARG"
-        ;;
-        o) output_file="$OPTARG"
-        ;;
-        v) verbose=1
-        ;;
-        f) fragment=1
-        ;;
-        \?) show_basker_usage
-        ;;
-        esac
-    done
-
-    if [ -z "$target_range" ] || [ -z "$output_file" ]; then
-        show_basker_usage
-    fi
 
     # Load a MAC address for spoofing
     mac=$(generate_random_mac)
@@ -216,7 +200,7 @@ function basker_stealth_scan() {
     random_dns_servers=$(generate_random_dns_servers)
 
     # Build nmap command
-    nmap_command="nmap -sS -Pn --source-port 53 --randomize-hosts -p21,22,23,25,53,80,110,113,143,443,1723,3389,8080 -T2 --max-retries 2 --spoof-mac $mac --dns-servers $random_dns_servers --data-length 731 -D 190.173.78.36,186.18.16.7,ME,190.175.27.84 $target_range -oG $output_file"
+    nmap_command="nmap -sS -Pn --source-port 53 --randomize-hosts -p21,22,23,25,53,80,110,113,143,443,1723,3389,8080 -T2 --max-retries 2 --spoof-mac $mac --dns-servers $random_dns_servers --data-length 731 -D 190.173.78.36,186.18.16.7,ME,190.175.27.84 $target_range -oG $workspace_location/$output_file"
 
     # Check if verbosity or frag are requested
     if [ "$verbose" -eq 1 ]; then
@@ -230,10 +214,10 @@ function basker_stealth_scan() {
     # Initiate scan
     eval $nmap_command
 
-    echo "Completed phase one. Your output location: $output_file"
+    echo "Completed phase one. Your output location: $workspace_location/$output_file"
 
     # Call lizard eye
-    lizard_eye
+    lizard_eye "$workspace_location/$output_file"
 
     echo "Completed phase two. Sorted lists created."
 }
@@ -245,11 +229,13 @@ function hiss_aggressive_scan() {
   mac=$(generate_random_mac)
   random_dns_servers=$(generate_random_dns_servers)
 
-  nmap_command="nmap -n -PE -PP -PS21,22,23,25,80,113,443,31339 -PA80,113,443,10042 -PU40125,161 --source-port 53 --randomize-hosts -T4 --spoof-mac $mac --dns-servers $random_dns_servers $tgtrange -oA $output"
+  nmap_command="nmap -n -PE -PP -PS21,22,23,25,80,113,443,31339 -PA80,113,443,10042 -PU40125,161 --source-port 53 --randomize-hosts -T4 --spoof-mac $mac --dns-servers $random_dns_servers --data-length 731 -D 190.173.78.36,186.18.16.7,ME,190.175.27.84 $tgtrange -oG $workspace_location/$output"
 
   eval $nmap_command
 
-  echo "Completed. Check your output location: $output"
+  lizard_eye "$workspace_location/$output"
+
+  echo "Completed. Sorted lists created. Check your output location: $workspace_location/$output"
 }
 
 function automated_svsc_scan() {
@@ -257,18 +243,25 @@ function automated_svsc_scan() {
   open_ports=(21 22 23 80 110 125 443 3306 5060 8080)
 
   for port in "${open_ports[@]}"; do
-    open_ips_files["$port"]="open_ips_port_$port.txt"
+    open_ips_files["$port"]="$workspace_location/open_ips_port_$port.txt"
   done
+
+  read -p "Select output file:" output_file
 
   echo "Select a file to use for the scan:"
   select file in "${open_ips_files[@]}"; do
-    target_file=$file
-    break
+    # Skip file selection if file size is zero
+    if [[ -s $file ]]; then
+      target_file=$file
+      break
+    else
+      echo "File $file is empty, skipping..."
+    fi
   done
 
   read -p "Enter the version intensity (0-9): " intensity
   if [[ $intensity -ge 0 ]] && [[ $intensity -le 9 ]]; then
-    nmap_command="nmap -sV -sC --version-intensity $intensity -iL $target_file"
+    nmap_command="nmap -sV -sC --version-intensity $intensity -iL $workspace_location/$target_file -oG $workspace_location/$output_file"
     eval $nmap_command
   else
     echo "Invalid intensity level. Please enter a value between 0 and 9."
@@ -279,7 +272,7 @@ function clearweb_scraper() {
   read -p "Enter the target URL: " target_url
   read -p "Enter target keywords, separated by comma: " target_keywords
 
-  # Replace comma by space
+  # Replace comma with space
   target_keywords=${target_keywords//,/ }
 
   python3 scrappy_pup.py "$target_url" $target_keywords
@@ -289,7 +282,7 @@ function darkweb_scraper() {
   read -p "Enter the target URL: " target_url
   read -p "Enter target keywords, separated by comma: " target_keywords
 
-  # Replace comma by space
+  # Replace comma with space
   target_keywords=${target_keywords//,/ }
   python3 scrappy_badger.py -u "$target_url" -k "$target_keywords"
 }
@@ -327,12 +320,12 @@ function script_scan_hub() {
       local script_name
 
       if [[ $aggressive == 1 ]]; then
-          script_name="${scan_type}-*"
+        script_name="intrusive"
       else
-          script_name="not intrusive and ${scan_type}-*"
+        script_name="safe"
       fi
 
-      nmap -Pn --source-port 80 --script="$script_name" $tgt -oG $outfile
+      nmap -Pn --source-port 80 --script="$script_name" "$tgt" -oG "$workspace_location/$outfile"
   }
 
   echo "Welcome to the script scanning hub"
@@ -407,11 +400,7 @@ while true; do
           basker_stealth_scan -t $target_range -o $output_file
           ;;
         2)
-          echo "Enter target range in CIDR notation:"
-          read target_range
-          echo "Enter output file:"
-          read output_file
-          hiss_aggressive_scan -t $target_range -o $output_file
+          hiss_aggressive_scan
           ;;
         3)
           automated_svsc_scan
