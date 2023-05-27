@@ -89,7 +89,7 @@ function workspace_setup() {
         hiss_aggressive_scan
         ;;
       3)
-        automated_svsc_scan
+        automated_svsc_scan $workspace_location
         ;;
       4)
         clearweb_scraper
@@ -117,23 +117,23 @@ function workspace_setup() {
 
 
 function workspace_load() {
-  # Ask for name of workspace
-  echo "Enter Workspace Name to load:"
-  read workspace_name
+  read -p "Enter workspace name: " workspace_name
 
-  # Search for the workspace in the config file
-  workspace_entry=$(grep "workspace=\"${workspace_name}=" $config_file)
+  workspace_info=$(grep "workspace=\"${workspace_name}=" $config_file | cut -d'=' -f2- | tr -d "\"")
 
-  # If the workspace was not found, notify the user and return
-  if [ -z "$workspace_entry" ]; then
-    echo "Workspace \"$workspace_name\" does not exist."
-    return
+  if [[ -z $workspace_info ]]; then
+    echo "Workspace not found!"
+  else
+    workspace_name_found=$(echo $workspace_info | cut -d'=' -f1)
+    workspace_path=$(echo $workspace_info | cut -d'=' -f2-)
+
+    if [[ $workspace_name == $workspace_name_found ]]; then
+      export workspace_path
+      echo "Workspace loaded!"
+    else
+      echo "Workspace not found!"
+    fi
   fi
-
-  # If workspace found, load it into the workspace_info
-  workspace_info="$workspace_entry"
-
-  echo "Workspace \"$workspace_name\" loaded."
 }
 
 # Define sub_menu
@@ -239,11 +239,15 @@ function hiss_aggressive_scan() {
 }
 
 function automated_svsc_scan() {
+  local workspace_location=$1
+
+  echo "Workspace location: $workspace_location"
+
   declare -A open_ips_files
   open_ports=(21 22 23 80 110 125 443 3306 5060 8080)
 
   for port in "${open_ports[@]}"; do
-    open_ips_files["$port"]="$workspace_location/open_ips_port_$port.txt"
+    open_ips_files["$port"]="${workspace_location}open_ips_port_$port.txt"
   done
 
   read -p "Select output file:" output_file
@@ -261,12 +265,13 @@ function automated_svsc_scan() {
 
   read -p "Enter the version intensity (0-9): " intensity
   if [[ $intensity -ge 0 ]] && [[ $intensity -le 9 ]]; then
-    nmap_command="nmap -sV -sC --version-intensity $intensity -iL $workspace_location/$target_file -oG $workspace_location/$output_file"
+    nmap_command="nmap -sV -sC --version-intensity $intensity -iL $target_file -oG $workspace_location$output_file"
     eval $nmap_command
   else
     echo "Invalid intensity level. Please enter a value between 0 and 9."
   fi
 }
+
 
 function clearweb_scraper() {
   read -p "Enter the target URL: " target_url
@@ -390,6 +395,7 @@ while true; do
       ;;
     3)
       workspace_menu
+      workspace_location=$(workspace_load)
       read -p "Select an option: " workspace_option
       case $workspace_option in
         1)
@@ -403,7 +409,7 @@ while true; do
           hiss_aggressive_scan
           ;;
         3)
-          automated_svsc_scan
+          automated_svsc_scan $workspace_location
           ;;
         4)
           clearweb_scraper
