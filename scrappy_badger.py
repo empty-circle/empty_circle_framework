@@ -12,7 +12,7 @@ import argparse
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 control_port = 9151  # Change this to match your Tor control port
-password = 'your-passphrase'  # Change this to match your Tor control password
+password = 'your-passphrase-here'  # Change this to match your Tor control password
 socks.set_default_proxy(socks.SOCKS5, "localhost", 9150)  # Tor default port is 9150
 
 def create_connection(address, timeout=None, source_address=None):
