@@ -1,10 +1,14 @@
-The Empty Circle Recon Framework
-Created by David Kuszmar
-MIT License
+# The Empty Circle Reconnaissance Framework - 2023
+# v 0.3
 
-This framework is made of simple, easy to use tools that have proven reliable in the field. If you're the sort of redteamer
-or pen-tester who prefers ease of use and straightforward tools to some of the more sophisticated and frippery-heavy gear out
-there, then this is probablt the framework for you.
+# Developed by David Kuszmar & Nikita Kotlyarov
+# https://github.com/empty-circle
+# https://github.com/thenikitakotlyarov
+
+# The Empty Circle is a recon framework for pentesters and
+# redteamers. It is meant to be simple, easy to use, and easy
+# to modify. Check the readme for exact instructions and a
+# walkthrough.
 
 A couple of important notes!
 A) Scrappy_Badger.py - the Darkweb Scraper - requires you to have entered the cleartext version of your torrc password and the appropriate ports set and matched as well.
