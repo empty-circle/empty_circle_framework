@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # https://github.com/empty-circle/empty-circle.git
 # The Empty Circle Reconnaissance Framework - 2023
-# v 0.4
+# v 0.5
 
 # Developed by David Kuszmar & Nikita Kotlyarov
 # https://github.com/empty-circle
@@ -24,37 +24,44 @@ from pathlib import Path
 import time
 
 
+
+
 class Console:
     """
     TODO:fill in this section
     """
     def __init__(self):
-         self.state = 0
-         self.running = True
+        self.state = 0
+        self.running = True
 
-         self.work_dir = "./"
-
-
-         self.module_dir = 'modules'
-         self.wspace_dir = 'workspaces'
-
-         self.global_config_file = "global_config.toml"
-
-         self.module_config_file = f"{self.module_dir}.toml"
-         self.wspace_config_file = f"{self.wspace_dir}.toml"
-
-         self.Configer = configparser.ConfigParser()
+        self.work_dir = "./"
 
 
-         self.fs_struct = {
-             f"{self.wspace_dir}/",
-             f"{self.module_dir}/",
-             f"{self.global_config_file}",
-             f"{self.module_config_file}",
-             f"{self.wspace_config_file}"
-             }
+        self.module_dir = 'modules'
+        self.wspace_dir = 'workspaces'
 
-         self.startup()
+        self.global_config_file = "global_config.toml"
+
+        self.module_config_file = f"{self.module_dir}.toml"
+        self.wspace_config_file = f"{self.wspace_dir}.toml"
+
+        self.fs_struct = {
+            f"{self.wspace_dir}/",
+            f"{self.module_dir}/",
+            f"{self.global_config_file}",
+            f"{self.module_config_file}",
+            f"{self.wspace_config_file}"
+            }
+
+
+        self.GlobalConfiger = configparser.ConfigParser()
+        self.ModuleConfiger = configparser.ConfigParser()
+        self.WspaceConfiger = configparser.ConfigParser()
+
+        self.wspaces = dict()
+        self.modules = dict()
+
+        self.startup()
 
 
 
@@ -63,27 +70,41 @@ class Console:
         self.clear()
 
 
-        print("Loading Empty Circle Framework")
-        # looks at framework modules and loads components+.,m
+        print("Loading Empty Circle Framework...")
+
+        # loads modules
+        self.ModuleConfiger.read(self.module_config_file)
+        self.module_options =[ e for e in self.ModuleConfiger ]
+        self.module_options.remove('DEFAULT')
+        for module_name in self.module_options:
+            self.module_load(module_name)
+
+        # loads workspaces
+        self.WspaceConfiger.read(self.wspace_config_file)
         self.wspace_options = self.strap(self.work_dir)
 
-        self.wspaces = dict()
 
         self.wspaces['__default__'] = {'name' : "__no_workspace__",
                                        'path' : "./__default__",
                                        'info' : "No Workspace Set" }
-        self.wspaces['__current__'] = dict(self.wspaces['__default__'])
 
         for wspace_name in self.wspace_options:
             self.wspace_load(name=wspace_name)
 
-        self.wspaces['__current__'] = {'name':'No Workspace Loaded.'}
+        self.wspaces['__current__'] = dict(self.wspaces['__default__'])
 
 
+        self.WspaceConfiger.read(self.wspace_config_file)
         self.wspace_load(options=self.wspace_options)
+
+
+
+
+
 
     def strap(self,include_dir):
         include_file_path = f"{include_dir}.include"
+
         if not os.path.isfile(include_file_path):
             self.error(f"missing critical file {include_file_path}!",0)
         self.paths = self.include(f"{include_dir}.include")
@@ -91,18 +112,9 @@ class Console:
         for required_fs in self.fs_struct:
             if f"{self.work_dir}{required_fs}" not in self.paths:
                 self.error(f"missing critical folder {required_fs}",0)
+
+
         return self.paths[f"{self.work_dir}{self.wspace_dir}/"][0][1]
-
-        #load existing workspaces off disk
-        #loads into self.worskspaces['<name>']
-
-        #dirs = [ d[0] for d in os.walk(f"./{self.wspace_dir}")][1:]
-        #print(dirs)
-        #for ws in dirs:
-        #    self.wspace_load(name=ws[2:].split('/')[-1])
-        #
-        #wspace_options = [ n for n in [ e for e in self.wspaces ][2:] ]
-        pass
 
 
 
@@ -172,14 +184,23 @@ class Console:
     #menus
     def splash(self):
         self.clear()
-        banner = \
-            """
-=========================================
-            THE EMPTY CIRCLE
-                  2023
-                  DKNK
-=========================================
-            """
+
+        width = os.get_terminal_size()[0]
+        spanner = f"\n{''.join(['=' for i in range(width)])}"
+
+        title_text = "THE EMPTY CIRCLE"
+        title_spanner = ''.join([' ' for i in range(int(width/2)-int(len(title_text)/2)-1)])
+        title = f"\n[{title_spanner}{title_text}{title_spanner}]"
+
+        copy_text = "2023"
+        copy_spanner = ''.join([' ' for i in range(int(width/2)-int(len(copy_text)/2)-1)])
+        copy = f"\n[{copy_spanner}{copy_text}{copy_spanner}]"
+
+        sig_text = "DKNK"
+        sig_spanner = ''.join([' ' for i in range(int(width/2)-int(len(sig_text)/2)-1)])
+        sig = f"\n[{sig_spanner}{sig_text}{sig_spanner}]"
+
+        banner = spanner + title + copy + sig + spanner
         print(banner)
 
     def main_menu(self):
@@ -279,6 +300,37 @@ class Console:
 
         #self.clear()
 
+    #modules
+    def module_setup(self,name=""):
+        pass
+
+    def module_load(self,name=""):
+        if name == "":
+            self.error("no module provided.",1)
+        else:
+            try:
+                # Load module information from config file
+                self.ModuleConfiger.read(self.module_config_file)
+                if name not in self.ModuleConfiger:
+                    self.error(f'Module "{name}" does not exist.',1)
+                    return
+                module_path = self.ModuleConfiger[name]['module_path']
+                module_name = self.ModuleConfiger[name]['module_name']
+
+                # Updating module info
+                self.modules[name] = {'name' : name,
+                                     'path' : module_path,
+                                     'info' : module_name}
+                print(f'Module "{module_name}" loaded.')
+
+                self.modules['__current__'] = self.modules[name]
+            except Exception as e:
+                self.error(f"couldn't load module {e}",1)
+
+    def module_delete(self,name=""):
+        pass
+
+
     #workspaces
 
     def wspace_setup(self):
@@ -369,12 +421,12 @@ class Console:
             wspace_name in search:
 
             # Load workspace information from config file
-            self.Configer.read(self.wspace_config_file)
-            if wspace_name not in self.Configer:
+            self.WspaceConfiger.read(self.wspace_config_file)
+            if wspace_name not in self.WspaceConfiger:
                 self.error(f'Workspace "{wspace_name}" does not exist.',1)
                 return
-            wspace_path = self.Configer[wspace_name]['workspace_path']
-            wspace_name_found = self.Configer[wspace_name]['workspace_name']
+            wspace_path = self.WspaceConfiger[wspace_name]['workspace_path']
+            wspace_name_found = self.WspaceConfiger[wspace_name]['workspace_name']
 
             # Updating workspacespace info
             wspace_info = f"{wspace_name_found} @ {wspace_path}"
@@ -413,13 +465,13 @@ class Console:
         wspace_name = self.wspace_options[attempt]
 
         # Load workspace information from config file
-        self.Configer.read(self.wspace_config_file)
-        if wspace_name not in self.Configer:
+        self.WspaceConfiger.read(self.wspace_config_file)
+        if wspace_name not in self.WspaceConfiger:
             self.error(f'Workspace "{wspace_name}" does not exist.',1)
             return
 
         # Delete workspace directory
-        wspace_path = self.Configer[wspace_name]['workspace_path']
+        wspace_path = self.WspaceConfiger[wspace_name]['workspace_path']
         try:
             os.rmdir(wspace_path)
             print(f'Workspace "{wspace_name}" deleted.')
@@ -427,9 +479,9 @@ class Console:
             self.error("Deletion failed. Please ensure workspace is empty.",1)
 
         # Removing workspace from config file
-        self.Configer.remove_section(wspace_name)
+        self.WspaceConfiger.remove_section(wspace_name)
         with open(self.wspace_config_file, 'w') as config_file:
-            self.Configer.write(config_file)
+            self.WspaceConfiger.write(config_file)
 
         # Removing from workspace options list
         self.wspace_options.remove(wspace_name)
@@ -442,6 +494,12 @@ class Console:
 
     # Function to handle workspace operations
     def wspace_ops(self):
+
+
+
+
+
+
         if self.wspaces['__current__']['name'] == '__no_workspace__':
             self.error("No workspace loaded. Please load or create a workspace first.",1)
             return
