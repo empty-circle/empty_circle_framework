@@ -1,0 +1,34 @@
+[asvsc]
+    active = true
+    module_path = "./modules/runners/asvsc.sh"
+    module_name = "Automated Version/Service Scan"
+
+[basker]
+    active = true
+    module_path = "./modules/runners/basker.sh"
+    module_name = "Basker Stealth Scan"
+
+[hiss]
+    active = true
+    module_path = "./modules/runners/hiss.sh"
+    module_name = "Hiss Aggressive Scan"
+
+[pastebin_scraper]
+    active = true
+    module_path = "./modules/runners/pastebin_scraper.py"
+    module_name = "Pastebin Crawler"
+
+[scanhub]
+    active = true
+    module_path = "./modules/runners/scanhub.sh"
+    module_name = "Script Scanning Hub"
+
+[scrappy_badger]
+    active = true
+    module_path = "./modules/runners/scrappy_badger.py"
+    module_name = "Darkweb Scraper"
+
+[scrappy_pup]
+    active = true
+    module_path = "./modules/runners/scrappy_pup.py"
+    module_name = "Clearweb Scraper"
