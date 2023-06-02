@@ -1,0 +1,8 @@
+[__default__]
+workspace_path = ./workspaces/__default__
+workspace_name = "__default__"
+
+[empty]
+    workspace_path=./workspaces/empty
+    workspace_name="empty"
+               

@@ -1,0 +1,5 @@
+./global_config.toml o
+./modules.toml o
+./modules/ r
+./workspaces.toml o
+./workspaces/ r
